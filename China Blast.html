@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Tea Blast - Carnival Fun</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka+One&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #fdf2f8;
+            font-family: 'Fredoka One', cursive;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, #87ceeb 0%, #fdf2f8 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        /* Carnival Tent Background */
+        .carnival-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .tent-roof {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 30%;
+            background: repeating-linear-gradient(
+                90deg,
+                #ef4444,
+                #ef4444 60px,
+                #ffffff 60px,
+                #ffffff 120px
+            );
+            border-bottom: 12px solid #b91c1c;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .string-lights {
+            position: absolute;
+            top: 30%;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+        }
+
+        .light {
+            width: 15px;
+            height: 20px;
+            border-radius: 50%;
+            animation: blink 1s infinite alternate;
+        }
+
+        @keyframes blink {
+            from { opacity: 0.5; filter: brightness(1); }
+            to { opacity: 1; filter: brightness(1.5); }
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 40px;
+            z-index: 20;
+            pointer-events: none;
+            text-align: center;
+            width: 100%;
+        }
+
+        .title {
+            font-family: 'Bungee', cursive;
+            font-size: 3.5rem;
+            color: #b91c1c;
+            text-shadow: 4px 4px 0px #fff, 6px 6px 0px rgba(0,0,0,0.1);
+            margin-bottom: 0;
+        }
+
+        .win-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2.5rem;
+            border-radius: 2rem;
+            box-shadow: 0 20px 0 #cbd5e1, 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 100;
+            border: 10px solid #fbbf24;
+            min-width: 350px;
+        }
+
+        .win-popup h2 {
+            font-size: 2.2rem;
+            color: #ef4444;
+            margin-bottom: 1rem;
+        }
+
+        .btn-restart {
+            background: #ef4444;
+            color: white;
+            padding: 1.2rem 2.5rem;
+            border-radius: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 6px 0 #b91c1c;
+            transition: all 0.1s;
+            pointer-events: auto;
+        }
+
+        .btn-restart:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #b91c1c;
+        }
+
+        #aimer {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border: 4px dashed white;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 30;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .start-hint {
+            position: absolute;
+            bottom: 120px;
+            width: 100%;
+            text-align: center;
+            color: #b91c1c;
+            font-size: 1.2rem;
+            z-index: 25;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="carnival-background">
+        <div class="tent-roof"></div>
+        <div class="string-lights" id="lights-container"></div>
+    </div>
+    
+    <div class="ui-layer">
+        <h1 class="title">CHINA BLAST</h1>
+    </div>
+
+    <div id="start-hint" class="start-hint">Click & Hold to Feed 習近平!</div>
+
+    <div id="aimer"></div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <div id="win-popup" class="win-popup">
+        <h2 id="win-message">You defeated 習近平. Everyone is a winner!</h2>
+        <p class="mb-6 text-slate-600">The crowd goes wild! 🎉</p>
+        <button class="btn-restart" onclick="resetGame()">Play Again</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    const winPopup = document.getElementById('win-popup');
+    const aimer = document.getElementById('aimer');
+    const lightsContainer = document.getElementById('lights-container');
+    const startHint = document.getElementById('start-hint');
+
+    // Create string lights
+    const lightColors = ['#fbbf24', '#ef4444', '#3b82f6', '#10b981', '#f472b6'];
+    for(let i=0; i<20; i++) {
+        const light = document.createElement('div');
+        light.className = 'light';
+        light.style.backgroundColor = lightColors[i % lightColors.length];
+        light.style.animationDelay = (Math.random() * 2) + 's';
+        lightsContainer.appendChild(light);
+    }
+
+    let width, height;
+    let bearScale = 0.8;
+    let isGameOver = false;
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let isShooting = false;
+    let pearls = [];
+    let audioCtx = null;
+    let musicStarted = false;
+    let musicLooping = false;
+
+    // Bear properties
+    const bearBaseSize = 150;
+    let bearX, bearY;
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        bearX = width / 2;
+        bearY = height * 0.65;
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Calliope Music Logic (Procedural Music)
+    function startMusic() {
+        if (musicStarted) {
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            return;
+        }
+        musicStarted = true;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        playNote();
+        startHint.style.display = 'none';
+    }
+
+    function playNote() {
+        if (isGameOver) {
+            musicLooping = false;
+            return;
+        }
+        
+        musicLooping = true;
+        const melody = [
+            440, 493.88, 523.25, 587.33, 659.25, 587.33, 523.25, 493.88,
+            392, 440, 493.88, 523.25, 587.33, 493.88, 392, 349.23
+        ];
+        
+        if (typeof playNote.noteIndex === 'undefined') playNote.noteIndex = 0;
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.type = 'triangle'; 
+        osc.frequency.setValueAtTime(melody[playNote.noteIndex], audioCtx.currentTime);
+        
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.5);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+        
+        playNote.noteIndex = (playNote.noteIndex + 1) % melody.length;
+        setTimeout(playNote, 300);
+    }
+
+    // Pearl Class
+    class Pearl {
+        constructor(x, y, vx, vy) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.radius = 8 + Math.random() * 5;
+            this.gravity = 0.25;
+            this.isConsumed = false;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += this.gravity;
+
+            const currentMouthX = bearX;
+            const currentMouthY = bearY - (30 * bearScale); 
+            const mouthRadius = 40 * bearScale;
+
+            const dist = Math.hypot(this.x - currentMouthX, this.y - currentMouthY);
+            if (dist < mouthRadius && !isGameOver) {
+                this.isConsumed = true; 
+                bearScale += 0.008; 
+                if (bearScale > 3.2) {
+                    triggerWin();
+                }
+            }
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a0d01'; 
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius*0.2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.fill();
+        }
+    }
+
+    function drawBear(x, y, scale) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+
+        const colorBody = '#fbbf24'; 
+        const colorShirt = '#ef4444'; 
+        const colorMuzzle = '#fef3c7'; 
+
+        // Ears
+        ctx.fillStyle = colorBody;
+        ctx.beginPath();
+        ctx.arc(-50, -100, 30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(50, -100, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Legs/Feet
+        ctx.beginPath();
+        ctx.ellipse(-40, 70, 30, 20, 0, 0, Math.PI * 2);
+        ctx.ellipse(40, 70, 30, 20, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Right Arm (Simple curved arm)
+        ctx.fillStyle = colorBody;
+        ctx.beginPath();
+        ctx.ellipse(-75, 10, 25, 45, Math.PI / 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Left Arm (Holding the pot)
+        ctx.beginPath();
+        ctx.ellipse(75, 10, 25, 45, -Math.PI / 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Hunny Pot
+        const potX = 90;
+        const potY = 35;
+        ctx.fillStyle = '#3b82f6'; // Blue pot
+        ctx.beginPath();
+        ctx.ellipse(potX, potY, 35, 30, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Lip of the pot
+        ctx.fillRect(potX - 35, potY - 35, 70, 10);
+        // "Hunny" text
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('HUNNY', potX, potY + 5);
+
+        // Body/Shirt
+        ctx.fillStyle = colorShirt;
+        ctx.beginPath();
+        ctx.ellipse(0, 20, 70, 60, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Star on Chest (Kept on top of shirt)
+        ctx.fillStyle = '#fde047';
+        drawStar(0, 20, 5, 25, 12);
+
+        // Head
+        ctx.fillStyle = colorBody;
+        ctx.beginPath();
+        ctx.arc(0, -60, 70, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Muzzle
+        ctx.fillStyle = colorMuzzle;
+        ctx.beginPath();
+        ctx.ellipse(0, -40, 45, 35, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mouth
+        ctx.fillStyle = '#451a03';
+        ctx.beginPath();
+        ctx.ellipse(0, -30, 25, 15, 0, 0, Math.PI * 2); 
+        ctx.fill();
+
+        // Nose
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(0, -45, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eyes
+        ctx.beginPath();
+        ctx.arc(-25, -75, 6, 0, Math.PI * 2);
+        ctx.arc(25, -75, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+        let rot = Math.PI / 2 * 3;
+        let x = cx;
+        let y = cy;
+        let step = Math.PI / spikes;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius)
+        for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius;
+            y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y)
+            rot += step
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y)
+            rot += step
+        }
+        ctx.lineTo(cx, cy - outerRadius)
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function drawShooter() {
+        const shooterX = mouseX;
+        const shooterY = height - 60;
+
+        ctx.save();
+        ctx.translate(shooterX, shooterY);
+        
+        ctx.strokeStyle = '#fb7185';
+        ctx.lineWidth = 18;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, -50);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.beginPath();
+        ctx.moveTo(-35, 70);
+        ctx.lineTo(35, 70);
+        ctx.lineTo(45, 0);
+        ctx.lineTo(-45, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.fillStyle = '#b91c1c';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('BUBBLE', 0, 32);
+        ctx.fillText('TEA', 0, 48);
+
+        ctx.restore();
+    }
+
+    function triggerWin() {
+        isGameOver = true;
+        winPopup.style.display = 'block';
+        createExplosion(bearX, bearY);
+        if (audioCtx) audioCtx.suspend();
+    }
+
+    function createExplosion(x, y) {
+        for (let i = 0; i < 80; i++) {
+            const p = new Pearl(
+                x + (Math.random() - 0.5) * 150,
+                y + (Math.random() - 0.5) * 150,
+                (Math.random() - 0.5) * 25,
+                (Math.random() - 0.5) * 25
+            );
+            pearls.push(p);
+        }
+    }
+
+    function resetGame() {
+        bearScale = 0.8;
+        isGameOver = false;
+        pearls = [];
+        winPopup.style.display = 'none';
+        
+        if (musicStarted) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (!musicLooping) playNote();
+        }
+    }
+
+    function gameLoop() {
+        ctx.clearRect(0, 0, width, height);
+
+        if (!isGameOver) {
+            drawBear(bearX, bearY, bearScale);
+        }
+
+        for (let i = pearls.length - 1; i >= 0; i--) {
+            pearls[i].update();
+            pearls[i].draw();
+
+            if (pearls[i].isConsumed || 
+                pearls[i].y > height + 200 || 
+                pearls[i].y < -200 || 
+                pearls[i].x < -100 || 
+                pearls[i].x > width + 100) {
+                pearls.splice(i, 1);
+            }
+        }
+
+        if (!isGameOver && isShooting) {
+            const speed = 18 + Math.random() * 4;
+            const spread = (Math.random() - 0.5) * 1.5;
+            pearls.push(new Pearl(
+                mouseX, 
+                height - 100, 
+                spread + (mouseX - (width/2)) * 0.005, 
+                -speed
+            ));
+        }
+        drawShooter();
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function handleMove(e) {
+        const x = e.clientX || (e.touches && e.touches[0].clientX);
+        const y = e.clientY || (e.touches && e.touches[0].clientY);
+        if (x !== undefined) {
+            mouseX = x;
+            mouseY = y;
+            aimer.style.display = 'block';
+            aimer.style.left = mouseX + 'px';
+            aimer.style.top = mouseY + 'px';
+        }
+    }
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('touchstart', (e) => {
+        isShooting = true;
+        startMusic();
+        handleMove(e);
+    });
+    window.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchend', () => isShooting = false);
+    window.addEventListener('mousedown', () => {
+        isShooting = true;
+        startMusic();
+    });
+    window.addEventListener('mouseup', () => isShooting = false);
+
+    window.onload = gameLoop;
+</script>
+</body>
+</html>
